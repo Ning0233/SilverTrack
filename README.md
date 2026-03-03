@@ -13,7 +13,7 @@ A full-stack movie and TV-show tracker for cinephiles.
 |-----------|----------------------|
 | Frontend  | React (Create React App) |
 | Backend   | Python · Flask       |
-| Database  | SQLite (via Python's built-in `sqlite3`) |
+| Database  | MySQL (local) · SQLite fallback for quick local dev |
 
 ---
 
@@ -56,11 +56,91 @@ DAILY_ACTIVITY    – daily interaction counts per title (powers trending)
 
 ---
 
+## Connecting to MySQL Locally
+
+The backend supports **MySQL** as its primary database.  
+SQLite is kept as a zero-configuration fallback for quick local development.
+
+### 1. Install MySQL
+
+| OS | Command |
+|----|---------|
+| macOS (Homebrew) | `brew install mysql && brew services start mysql` |
+| Ubuntu / Debian | `sudo apt update && sudo apt install mysql-server -y && sudo systemctl start mysql` |
+| Windows | Download the [MySQL Installer](https://dev.mysql.com/downloads/installer/) and run it |
+
+### 2. Create the database and user
+
+Log in as the MySQL root user and run:
+
+```sql
+CREATE DATABASE IF NOT EXISTS silvertrack
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+CREATE USER IF NOT EXISTS 'silvertrack'@'localhost'
+  IDENTIFIED BY 'change_me';
+
+GRANT ALL PRIVILEGES ON silvertrack.* TO 'silvertrack'@'localhost';
+
+FLUSH PRIVILEGES;
+```
+
+> **Tip:** Replace `change_me` with a strong password and update `.env` accordingly.
+
+### 3. Configure environment variables
+
+Copy the provided example file and edit it:
+
+```bash
+cp .env.example .env
+```
+
+Set the following values in `.env`:
+
+```dotenv
+DB_TYPE=mysql
+
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=silvertrack
+MYSQL_PASSWORD=change_me
+MYSQL_DATABASE=silvertrack
+```
+
+### 4. Install the Python MySQL driver
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+This installs `pymysql` (already listed in `requirements.txt`).
+
+### 5. Start the app
+
+```bash
+# Load .env automatically before starting Flask
+export $(grep -v '^#' .env | xargs)   # macOS / Linux
+# On Windows PowerShell use: Get-Content .env | ForEach-Object { $env:$($_.Split('=')[0]) = $_.Split('=')[1] }
+
+cd backend
+python app.py
+```
+
+The app will create all 11 tables in the `silvertrack` MySQL database on first run and seed them with sample data.
+
+### Switching back to SQLite
+
+Set `DB_TYPE=sqlite` (or remove the variable entirely) and restart – no MySQL server needed.
+
+---
+
 ## Quick Start
 
 ### Prerequisites
 - Python 3.9+
 - Node.js 18+
+- MySQL 8.0+ **or** SQLite (built into Python, zero setup)
 
 ### One-command start
 ```bash
@@ -119,4 +199,10 @@ USERS        ─── REVIEWS       ───── TITLE_BASICS
 USERS        ─── WATCH_BUDDIES ───── USERS
 TITLE_BASICS ─── DAILY_ACTIVITY
 ```
+
+---
+
+## Sprint Plan
+
+See [`SPRINT.md`](SPRINT.md) for the full sprint breakdown with all tasks, sizes, owners, and statuses.
 
