@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { CURRENT_USER } from '../App';
+import { useUser } from '../UserContext';
 
 const API = '/api';
 
 export default function TrackPage({ onSelectTitle }) {
+  const currentUser = useUser();
   const [progress, setProgress] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [predict,  setPredict]  = useState({});

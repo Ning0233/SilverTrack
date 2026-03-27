@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { CURRENT_USER } from '../App';
+import { useUser } from '../UserContext';
 
 const API = '/api';
 
 export default function BuddyPage({ onSelectTitle }) {
+  const currentUser = useUser();
   const [buddies,   setBuddies]   = useState([]);
   const [users,     setUsers]     = useState([]);
   const [newBuddy,  setNewBuddy]  = useState('');
@@ -16,7 +17,7 @@ export default function BuddyPage({ onSelectTitle }) {
   const [cmpResult, setCmpResult] = useState(null);
 
   const loadBuddies = () =>
-    fetch(`${API}/buddies/${CURRENT_USER.userId}`)
+    fetch(`${API}/buddies/${currentUser.userId}`)
       .then(r => r.json())
       .then(setBuddies);
 
@@ -31,7 +32,7 @@ export default function BuddyPage({ onSelectTitle }) {
     const res = await fetch(`${API}/buddies`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: CURRENT_USER.userId, buddyId: parseInt(newBuddy) }),
+      body: JSON.stringify({ userId: currentUser.userId, buddyId: parseInt(newBuddy) }),
     });
     if (res.ok) {
       setAddMsg('Buddy added! ✓');
@@ -45,7 +46,7 @@ export default function BuddyPage({ onSelectTitle }) {
   const compare = async () => {
     if (!cmpBuddy || !cmpTconst) return;
     const params = new URLSearchParams({
-      userId:  CURRENT_USER.userId,
+      userId:  currentUser.userId,
       buddyId: cmpBuddy,
       tconst:  cmpTconst,
     });
@@ -60,7 +61,7 @@ export default function BuddyPage({ onSelectTitle }) {
     return prog.status;
   };
 
-  const nonSelf = users.filter(u => u.userId !== CURRENT_USER.userId);
+  const nonSelf = users.filter(u => u.userId !== currentUser.userId);
 
   return (
     <div>

@@ -3,6 +3,7 @@ import os
 from datetime import date, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from database import get_db, init_db
 from seed_data import seed as seed_db
@@ -462,7 +463,7 @@ def register_user():
     try:
         conn.execute(
             "INSERT INTO USERS(username, email, password) VALUES(?,?,?)",
-            (username, email, password),
+            (username, email, generate_password_hash(password)),
         )
         conn.commit()
     except Exception:
@@ -470,6 +471,47 @@ def register_user():
         return jsonify({"error": "Username or email already exists"}), 409
     conn.close()
     return jsonify({"message": "User registered"}), 201
+
+
+# ===========================================================================
+# 9. AUTH – Login
+# ===========================================================================
+
+@app.route("/api/auth/login", methods=["POST"])
+def login():
+    """Authenticate a user by username and password."""
+    data     = request.get_json(force=True)
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+
+    if not username or not password:
+        return jsonify({"error": "username and password are required"}), 400
+
+    conn = get_db()
+    user = conn.execute(
+        "SELECT userId, username, email, password FROM USERS WHERE username = ?",
+        (username,),
+    ).fetchone()
+    conn.close()
+
+    if not user:
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    stored = dict(user)["password"]
+    # Support both werkzeug hashed passwords and legacy plain-text seeds
+    valid = (
+        check_password_hash(stored, password)
+        if stored.startswith(("pbkdf2:", "scrypt:", "argon2:"))
+        else stored == password
+    )
+    if not valid:
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    return jsonify({
+        "userId":   dict(user)["userId"],
+        "username": dict(user)["username"],
+        "email":    dict(user)["email"],
+    })
 
 
 # Serve React frontend for any non-API route

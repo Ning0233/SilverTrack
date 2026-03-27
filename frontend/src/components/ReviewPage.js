@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { CURRENT_USER } from '../App';
+import { useUser } from '../UserContext';
 
 const API = '/api';
 
 export default function ReviewPage({ onSelectTitle }) {
+  const currentUser = useUser();
   const [tconst,  setTconst]  = useState('');
   const [rating,  setRating]  = useState('');
   const [text,    setText]    = useState('');
@@ -26,7 +27,7 @@ export default function ReviewPage({ onSelectTitle }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId:     CURRENT_USER.userId,
+        userId:     currentUser.userId,
         tconst,
         rating:     parseFloat(rating) || null,
         reviewText: text,

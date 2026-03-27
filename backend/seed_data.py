@@ -1,4 +1,5 @@
 """Seed the database with sample movie and TV show data."""
+from werkzeug.security import generate_password_hash
 from database import get_db, init_db
 
 TITLE_BASICS = [
@@ -125,9 +126,9 @@ TITLE_CREW = [
 ]
 
 USERS = [
-    ("alice",   "alice@example.com",   "hashed_pw_alice"),
-    ("bob",     "bob@example.com",     "hashed_pw_bob"),
-    ("carol",   "carol@example.com",   "hashed_pw_carol"),
+    ("alice",   "alice@example.com",   generate_password_hash("password123")),
+    ("bob",     "bob@example.com",     generate_password_hash("password123")),
+    ("carol",   "carol@example.com",   generate_password_hash("password123")),
 ]
 
 WATCH_PROGRESS = [

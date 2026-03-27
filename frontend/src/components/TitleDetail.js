@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { CURRENT_USER } from '../App';
+import { useUser } from '../UserContext';
 
 const API = '/api';
 
 export default function TitleDetail({ tconst, onBack }) {
+  const currentUser = useUser();
   const [detail,   setDetail]   = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
@@ -40,7 +41,7 @@ export default function TitleDetail({ tconst, onBack }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: CURRENT_USER.userId,
+        userId: currentUser.userId,
         tconst,
         status: trackStatus,
         currentSeason:  parseInt(trackSeason),
@@ -51,7 +52,7 @@ export default function TitleDetail({ tconst, onBack }) {
     setTrackMsg('Progress saved! ✓');
     // fetch prediction for TV series
     if (detail?.title?.titleType === 'tvSeries') {
-      const p = await fetch(`${API}/progress/${CURRENT_USER.userId}/${tconst}/predict`).then(r => r.json());
+      const p = await fetch(`${API}/progress/${currentUser.userId}/${tconst}/predict`).then(r => r.json());
       setPredict(p);
     }
   };
@@ -61,7 +62,7 @@ export default function TitleDetail({ tconst, onBack }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: CURRENT_USER.userId,
+        userId: currentUser.userId,
         tconst,
         rating:     parseFloat(revRating) || null,
         reviewText: revText,
