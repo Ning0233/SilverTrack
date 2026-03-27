@@ -131,37 +131,85 @@ USERS = [
     ("carol",   "carol@example.com",   generate_password_hash("password123")),
 ]
 
+# TRACK – watch progress per user
+# (userId, tconst, status, currentSeason, currentEpisode, episodesPerDay, lastWatchedDate)
 WATCH_PROGRESS = [
-    # (userId, tconst, status, currentSeason, currentEpisode, episodesPerDay, lastWatchedDate)
-    (1, "tt0944947", "watching",  1, 5, 2.0, "2026-03-01"),
-    (1, "tt0111161", "finished",  1, 1, 0,   "2026-02-20"),
-    (2, "tt0944947", "watching",  1, 8, 3.0, "2026-03-02"),
-    (2, "tt4574334", "watching",  1, 3, 4.0, "2026-03-02"),
-    (3, "tt0903747", "watching",  2, 2, 1.5, "2026-03-01"),
+    # alice (id=1): variety of genres — drama movies + crime/drama TV
+    (1, "tt0944947", "watching",      1, 5,  2.0, "2026-03-26"),   # GoT S1E5
+    (1, "tt0111161", "finished",      1, 1,  0,   "2026-03-10"),   # Shawshank
+    (1, "tt0468569", "finished",      1, 1,  0,   "2026-03-05"),   # Dark Knight
+    (1, "tt0903747", "watching",      1, 3,  1.0, "2026-03-25"),   # Breaking Bad S1E3
+    (1, "tt1375666", "plan_to_watch", 1, 1,  0,   "2026-03-20"),   # Inception (queued)
+
+    # bob (id=2): ahead of alice on GoT; sci-fi + drama
+    (2, "tt0944947", "watching",      1, 8,  3.0, "2026-03-27"),   # GoT S1E8 (ahead of alice)
+    (2, "tt4574334", "watching",      1, 5,  4.0, "2026-03-26"),   # Stranger Things S1E5
+    (2, "tt1375666", "finished",      1, 1,  0,   "2026-03-15"),   # Inception
+    (2, "tt0816692", "finished",      1, 1,  0,   "2026-03-18"),   # Interstellar
+    (2, "tt3581920", "watching",      1, 3,  2.0, "2026-03-27"),   # The Last of Us S1E3
+
+    # carol (id=3): crime dramas focus
+    (3, "tt0903747", "watching",      2, 2,  1.5, "2026-03-27"),   # Breaking Bad S2E2
+    (3, "tt3581920", "watching",      1, 5,  2.0, "2026-03-26"),   # Last of Us S1E5
+    (3, "tt0068646", "finished",      1, 1,  0,   "2026-03-12"),   # The Godfather
+    (3, "tt0111161", "finished",      1, 1,  0,   "2026-03-08"),   # Shawshank
+    (3, "tt0773262", "watching",      1, 4,  1.0, "2026-03-25"),   # Dexter S1E4
 ]
 
+# REVIEW – written while watching or after; some episode-specific
+# (userId, tconst, episodeTconst, rating, reviewText)
 REVIEWS = [
-    (1, "tt0111161", None, 9.5, "An absolute masterpiece. Morgan Freeman's narration is perfect."),
-    (2, "tt0944947", None, 8.0, "Season 1 is fantastic. Can't wait to see what happens next."),
-    (2, "tt4574334", None, 9.0, "Really good atmosphere and acting. Stranger Things hooked me instantly."),
-    (3, "tt0903747", None, 9.8, "Breaking Bad is the best TV show I have ever seen."),
-    (1, "tt0944947", "tt1668746", 7.5, "Episode 2 slowed down a bit but still setting up nicely."),
+    # alice reviews
+    (1, "tt0111161", None,         9.5, "An absolute masterpiece. Morgan Freeman's narration is perfect."),
+    (1, "tt0468569", None,         9.0, "Heath Ledger's Joker is one of cinema's greatest performances."),
+    (1, "tt0944947", "tt1668746",  7.5, "Episode 2 slowed down a bit but the world-building is great."),
+    (1, "tt0903747", None,         8.5, "The first few episodes feel slow but Walter's arc is fascinating."),
+
+    # bob reviews
+    (2, "tt0944947", None,         8.0, "Season 1 is fantastic. The Red Wedding is coming and I'm not ready."),
+    (2, "tt4574334", None,         9.0, "Really good atmosphere and acting. Hooked from episode one."),
+    (2, "tt1375666", None,         9.5, "Mind-bending from start to finish. A true sci-fi masterpiece."),
+    (2, "tt0816692", None,         9.2, "Visually stunning. The docking scene gave me chills."),
+    (2, "tt3581920", "tt13443472", 9.3, "Episode 2 (Long Long Time) might be the best episode of TV ever made."),
+
+    # carol reviews
+    (3, "tt0903747", None,         9.8, "Breaking Bad is the greatest character study in television history."),
+    (3, "tt0068646", None,         9.0, "A cinematic masterpiece. Brando is unforgettable."),
+    (3, "tt3581920", None,         9.2, "Pedro Pascal is perfect as Joel. Emotional and gripping."),
+    (3, "tt0111161", None,         9.4, "A timeless story about hope. Everyone should watch this."),
+    (3, "tt0773262", "tt0773262",  8.0, "Dexter is darkly comedic and I love the premise."),
 ]
 
+# CONNECT – buddy relationships (userId1 < userId2 always)
 WATCH_BUDDIES = [
-    (1, 2),
-    (1, 3),
+    (1, 2),   # alice ↔ bob  (both watching GoT – great for Compare)
+    (1, 3),   # alice ↔ carol
+    (2, 3),   # bob   ↔ carol
 ]
 
+# TRENDING – daily activity counts for the last 3 days
+# (activityDate, tconst, activityCount)
 DAILY_ACTIVITY = [
-    ("2026-03-02", "tt0944947", 12),
-    ("2026-03-02", "tt4574334", 8),
-    ("2026-03-02", "tt0903747", 7),
-    ("2026-03-02", "tt3581920", 5),
-    ("2026-03-02", "tt0111161", 4),
-    ("2026-03-01", "tt0944947", 10),
-    ("2026-03-01", "tt0903747", 9),
-    ("2026-03-01", "tt0816692", 6),
+    # 2026-03-27 (today)
+    ("2026-03-27", "tt0944947", 15),   # GoT – most active
+    ("2026-03-27", "tt3581920", 12),   # The Last of Us
+    ("2026-03-27", "tt4574334",  9),   # Stranger Things
+    ("2026-03-27", "tt0903747",  8),   # Breaking Bad
+    ("2026-03-27", "tt0111161",  6),   # Shawshank
+    ("2026-03-27", "tt1375666",  5),   # Inception
+    ("2026-03-27", "tt0816692",  4),   # Interstellar
+    ("2026-03-27", "tt0773262",  3),   # Dexter
+    # 2026-03-26
+    ("2026-03-26", "tt0944947", 12),
+    ("2026-03-26", "tt4574334",  8),
+    ("2026-03-26", "tt0903747",  9),
+    ("2026-03-26", "tt3581920",  7),
+    ("2026-03-26", "tt0111161",  5),
+    # 2026-03-25
+    ("2026-03-25", "tt0903747", 11),
+    ("2026-03-25", "tt0816692",  6),
+    ("2026-03-25", "tt0944947", 10),
+    ("2026-03-25", "tt1375666",  4),
 ]
 
 

@@ -10,14 +10,14 @@ export default function TrackPage({ onSelectTitle }) {
   const [predict,  setPredict]  = useState({});
 
   useEffect(() => {
-    fetch(`${API}/progress/${CURRENT_USER.userId}`)
+    fetch(`${API}/progress/${currentUser.userId}`)
       .then(r => r.json())
       .then(data => { setProgress(data); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [currentUser.userId]);
 
   const fetchPrediction = async (tconst) => {
-    const res = await fetch(`${API}/progress/${CURRENT_USER.userId}/${tconst}/predict`);
+    const res = await fetch(`${API}/progress/${currentUser.userId}/${tconst}/predict`);
     const data = await res.json();
     setPredict(prev => ({ ...prev, [tconst]: data }));
   };

@@ -498,13 +498,7 @@ def login():
         return jsonify({"error": "Invalid username or password"}), 401
 
     stored = dict(user)["password"]
-    # Support both werkzeug hashed passwords and legacy plain-text seeds
-    valid = (
-        check_password_hash(stored, password)
-        if stored.startswith(("pbkdf2:", "scrypt:", "argon2:"))
-        else stored == password
-    )
-    if not valid:
+    if not check_password_hash(stored, password):
         return jsonify({"error": "Invalid username or password"}), 401
 
     return jsonify({

@@ -53,8 +53,15 @@ export default function LoginPage({ onLogin }) {
         body:    JSON.stringify({ username, password }),
       });
       const loginData = await loginRes.json();
-      if (loginRes.ok) { onLogin(loginData); }
-      else { setError('Registered! Please log in.'); setTab('login'); }
+      if (loginRes.ok) {
+        onLogin(loginData);
+      } else {
+        // Registration succeeded but auto-login failed – direct the user to sign in
+        setTab('login');
+        setPassword('');
+        setEmail('');
+        setError('');
+      }
     } catch {
       setError('Network error. Is the backend running?');
     } finally {
