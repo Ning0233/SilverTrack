@@ -126,9 +126,9 @@ TITLE_CREW = [
 ]
 
 USERS = [
-    ("alice",   "alice@example.com",   generate_password_hash("password123")),
-    ("bob",     "bob@example.com",     generate_password_hash("password123")),
-    ("carol",   "carol@example.com",   generate_password_hash("password123")),
+    ("alice",   "alice@example.com",   generate_password_hash("password123", method="pbkdf2:sha256")),
+    ("bob",     "bob@example.com",     generate_password_hash("password123", method="pbkdf2:sha256")),
+    ("carol",   "carol@example.com",   generate_password_hash("password123", method="pbkdf2:sha256")),
 ]
 
 # TRACK – watch progress per user
@@ -219,7 +219,9 @@ def seed():
     cur = conn.cursor()
 
     # Skip seeding if data already exists
-    existing = cur.execute("SELECT COUNT(*) FROM TITLE_BASICS").fetchone()[0]
+    result = cur.execute("SELECT COUNT(*) FROM TITLE_BASICS")
+    row = cur.fetchone()
+    existing = list(row.values())[0]
     if existing > 0:
         conn.close()
         return

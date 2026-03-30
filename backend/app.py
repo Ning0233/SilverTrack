@@ -1,4 +1,6 @@
 """SilverTrack – Flask REST API backend."""
+from dotenv import load_dotenv
+load_dotenv()
 import os
 from datetime import date, timedelta
 from flask import Flask, request, jsonify, send_from_directory
@@ -322,9 +324,9 @@ def add_buddy():
     try:
         conn.execute("INSERT INTO WATCH_BUDDIES(userId1, userId2) VALUES(?,?)", (u1, u2))
         conn.commit()
-    except Exception:
+    except Exception as e:
         conn.close()
-        return jsonify({"error": "Buddy relationship already exists"}), 409
+        return jsonify({"error": str(e)}), 409
     conn.close()
     return jsonify({"message": "Buddy added"}), 201
 
@@ -463,12 +465,12 @@ def register_user():
     try:
         conn.execute(
             "INSERT INTO USERS(username, email, password) VALUES(?,?,?)",
-            (username, email, generate_password_hash(password)),
+            (username, email, generate_password_hash(password, method="pbkdf2:sha256")),
         )
         conn.commit()
-    except Exception:
+    except Exception as e:
         conn.close()
-        return jsonify({"error": "Username or email already exists"}), 409
+        return jsonify({"error": str(e)}), 409
     conn.close()
     return jsonify({"message": "User registered"}), 201
 

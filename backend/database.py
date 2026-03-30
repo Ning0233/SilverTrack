@@ -1,5 +1,7 @@
 import os
 import sqlite3
+from dotenv import load_dotenv
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Database configuration
@@ -76,6 +78,9 @@ class _MySQLConnectionWrapper:
         # Translate SQLite positional placeholders (`?`) to MySQL-style (`%s`).
         sql_mysql = sql.replace("?", "%s")
         self._cursor.execute(sql_mysql, params)
+        return self._cursor
+
+    def cursor(self):
         return self._cursor
 
     def commit(self):
