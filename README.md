@@ -13,7 +13,7 @@ A full-stack movie and TV-show tracker for cinephiles.
 |-----------|----------------------|
 | Frontend  | React (Create React App) |
 | Backend   | Python · Flask       |
-| Database  | MySQL (local) · SQLite fallback for quick local dev |
+| Database  | Azure Database for MySQL (Flexible Server) · SQLite fallback for quick local dev |
 
 ---
 
@@ -56,10 +56,103 @@ DAILY_ACTIVITY    – daily interaction counts per title (powers trending)
 
 ---
 
-## Connecting to MySQL Locally
+## Connecting to Azure Database for MySQL
 
-The backend supports **MySQL** as its primary database.  
+The production database is hosted on **Azure Database for MySQL Flexible Server**.  
+The backend connects to it using standard MySQL environment variables — no code changes needed, just configuration.  
 SQLite is kept as a zero-configuration fallback for quick local development.
+
+### How it works
+
+`database.py` reads `DB_TYPE` from the environment:
+
+- `DB_TYPE=sqlite` (default) → opens a local `silvertrack.db` file via Python's built-in `sqlite3`.
+- `DB_TYPE=mysql` → connects to MySQL using `pymysql` with the `MYSQL_*` env vars below.
+
+Azure Database for MySQL Flexible Server is a fully managed MySQL 8-compatible service. The app treats it exactly like any other MySQL host — the only difference is the server hostname and the requirement for TLS/SSL (enforced by Azure by default).
+
+### 1. Configure environment variables
+
+Copy the example file and fill in your Azure credentials:
+
+```bash
+cp .env.example .env
+```
+
+```dotenv
+DB_TYPE=mysql
+
+# Azure Database for MySQL Flexible Server
+MYSQL_HOST=<your-server>.mysql.database.azure.com
+MYSQL_PORT=3306
+MYSQL_USER=<admin-username>
+MYSQL_PASSWORD=<admin-password>
+MYSQL_DATABASE=silvertrack
+```
+
+> **Azure hostname format:** `<server-name>.mysql.database.azure.com` — find it on the Azure Portal under *Overview* for your Flexible Server resource.
+
+> **SSL:** Azure Flexible Server enforces SSL by default. `pymysql` uses SSL automatically when connecting to Azure hosts; no extra driver flags are required for standard connections.
+
+### 2. Create the database (first time only)
+
+Connect to the server with any MySQL client and run:
+
+```sql
+CREATE DATABASE IF NOT EXISTS silvertrack
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
+
+The Flask app will create all 11 tables automatically on first start.
+
+### 3. Install Python dependencies
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+This installs `pymysql` and `python-dotenv` (already listed in `requirements.txt`).
+
+### 4. Start the backend
+
+```bash
+cd backend
+python app.py          # runs on port 5000; reads .env automatically
+```
+
+### 5. Load real IMDB data into Azure (optional)
+
+`backend/load_imdb.py` bulk-loads up to 10,000 recent titles from the official [IMDB TSV datasets](https://developer.imdb.com/non-commercial-datasets/) directly into the Azure database.
+
+**Steps:**
+
+1. Download the following `.tsv.gz` files from IMDB and place them in `~/Downloads/`:
+   - `title.basics.tsv.gz`
+   - `title.ratings.tsv.gz`
+   - `name.basics.tsv.gz`
+   - `title.crew.tsv.gz`
+   - `title.episode.tsv.gz`
+
+2. Edit `backend/load_imdb.py` to set the correct Azure connection details (host, user, password). **Do not commit credentials to source control** — consider using environment variables or a local config file excluded by `.gitignore`.
+
+3. Run:
+   ```bash
+   pip install pymysql
+   python backend/load_imdb.py
+   ```
+
+The script filters to movies and TV series from the most recent years, deduplicates via `INSERT IGNORE`, and prints progress for each table.
+
+### Switching back to SQLite
+
+Set `DB_TYPE=sqlite` (or remove the variable entirely) and restart – no MySQL server or Azure account needed.
+
+---
+
+## Connecting to MySQL Locally (alternative)
+
+If you prefer a local MySQL server instead of Azure:
 
 ### 1. Install MySQL
 
@@ -70,8 +163,6 @@ SQLite is kept as a zero-configuration fallback for quick local development.
 | Windows | Download the [MySQL Installer](https://dev.mysql.com/downloads/installer/) and run it |
 
 ### 2. Create the database and user
-
-Log in as the MySQL root user and run:
 
 ```sql
 CREATE DATABASE IF NOT EXISTS silvertrack
@@ -86,17 +177,7 @@ GRANT ALL PRIVILEGES ON silvertrack.* TO 'silvertrack'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-> **Tip:** Replace `change_me` with a strong password and update `.env` accordingly.
-
-### 3. Configure environment variables
-
-Copy the provided example file and edit it:
-
-```bash
-cp .env.example .env
-```
-
-Set the following values in `.env`:
+### 3. Set `.env` for local MySQL
 
 ```dotenv
 DB_TYPE=mysql
@@ -108,31 +189,6 @@ MYSQL_PASSWORD=change_me
 MYSQL_DATABASE=silvertrack
 ```
 
-### 4. Install the Python MySQL driver
-
-```bash
-pip install -r backend/requirements.txt
-```
-
-This installs `pymysql` (already listed in `requirements.txt`).
-
-### 5. Start the app
-
-```bash
-# Load .env automatically before starting Flask
-export $(grep -v '^#' .env | xargs)   # macOS / Linux
-# On Windows PowerShell use: Get-Content .env | ForEach-Object { $env:$($_.Split('=')[0]) = $_.Split('=')[1] }
-
-cd backend
-python app.py
-```
-
-The app will create all 11 tables in the `silvertrack` MySQL database on first run and seed them with sample data.
-
-### Switching back to SQLite
-
-Set `DB_TYPE=sqlite` (or remove the variable entirely) and restart – no MySQL server needed.
-
 ---
 
 ## Quick Start
@@ -140,9 +196,9 @@ Set `DB_TYPE=sqlite` (or remove the variable entirely) and restart – no MySQL 
 ### Prerequisites
 - Python 3.9+
 - Node.js 18+
-- MySQL 8.0+ **or** SQLite (built into Python, zero setup)
+- Azure Database for MySQL **or** SQLite (built into Python, zero setup)
 
-### One-command start
+### One-command start (development)
 ```bash
 bash start.sh
 ```
@@ -150,7 +206,7 @@ This installs dependencies, seeds the database, and starts both servers:
 - **Backend** → http://localhost:5000
 - **Frontend** → http://localhost:3000
 
-### Manual start
+### Manual start (development)
 ```bash
 # Backend
 cd backend
@@ -160,7 +216,25 @@ python app.py          # runs on port 5000
 # Frontend (separate terminal)
 cd frontend
 npm install
-npm start              # runs on port 3000
+npm start              # runs on port 3000 with hot reload
+```
+
+The frontend dev server proxies all `/api/*` calls to the Flask backend at `localhost:5000` (configured by `"proxy"` in `frontend/package.json`).
+
+### Production build
+
+For deployments where Flask serves the React app as static files:
+
+```bash
+# 1. Build the React frontend
+cd frontend
+npm install
+npm run build          # outputs to frontend/build/
+
+# 2. Start Flask (it serves frontend/build/ for all non-API routes)
+cd ../backend
+pip install -r requirements.txt
+python app.py          # http://localhost:5000 serves both API and UI
 ```
 
 ---
