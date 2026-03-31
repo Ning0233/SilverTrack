@@ -1,6 +1,23 @@
 """Seed the database with sample movie and TV show data."""
+from datetime import date, timedelta
 from werkzeug.security import generate_password_hash
-from database import get_db, init_db
+from database import get_db, init_db, DB_TYPE
+
+
+def _ph():
+    """Return DB placeholder token for parameterized SQL."""
+    return "%s" if DB_TYPE == "mysql" else "?"
+
+
+def _insert_ignore():
+    """Return DB-specific INSERT IGNORE syntax."""
+    return "INSERT IGNORE" if DB_TYPE == "mysql" else "INSERT OR IGNORE"
+
+
+def _select_all(cur, sql, params=()):
+    """Execute a SELECT and return all rows for sqlite and pymysql cursors."""
+    cur.execute(sql, params)
+    return cur.fetchall()
 
 TITLE_BASICS = [
     ("tt0111161", "movie",    "The Shawshank Redemption", 1994, "Drama"),
@@ -187,30 +204,165 @@ WATCH_BUDDIES = [
     (2, 3),   # bob   ↔ carol
 ]
 
-# TRENDING – daily activity counts for the last 3 days
-# (activityDate, tconst, activityCount)
-DAILY_ACTIVITY = [
-    # 2026-03-27 (today)
-    ("2026-03-27", "tt0944947", 15),   # GoT – most active
-    ("2026-03-27", "tt3581920", 12),   # The Last of Us
-    ("2026-03-27", "tt4574334",  9),   # Stranger Things
-    ("2026-03-27", "tt0903747",  8),   # Breaking Bad
-    ("2026-03-27", "tt0111161",  6),   # Shawshank
-    ("2026-03-27", "tt1375666",  5),   # Inception
-    ("2026-03-27", "tt0816692",  4),   # Interstellar
-    ("2026-03-27", "tt0773262",  3),   # Dexter
-    # 2026-03-26
-    ("2026-03-26", "tt0944947", 12),
-    ("2026-03-26", "tt4574334",  8),
-    ("2026-03-26", "tt0903747",  9),
-    ("2026-03-26", "tt3581920",  7),
-    ("2026-03-26", "tt0111161",  5),
-    # 2026-03-25
-    ("2026-03-25", "tt0903747", 11),
-    ("2026-03-25", "tt0816692",  6),
-    ("2026-03-25", "tt0944947", 10),
-    ("2026-03-25", "tt1375666",  4),
-]
+def build_daily_activity_seed():
+    """Build trending seed data for today and the prior two days."""
+    today = date.today()
+
+    templates = [
+        # day offset, tconst, activityCount
+        (0, "tt0944947", 15),
+        (0, "tt3581920", 12),
+        (0, "tt4574334", 9),
+        (0, "tt0903747", 8),
+        (0, "tt0111161", 6),
+        (0, "tt1375666", 5),
+        (0, "tt0816692", 4),
+        (0, "tt0773262", 3),
+        (1, "tt0944947", 12),
+        (1, "tt4574334", 8),
+        (1, "tt0903747", 9),
+        (1, "tt3581920", 7),
+        (1, "tt0111161", 5),
+        (2, "tt0903747", 11),
+        (2, "tt0816692", 6),
+        (2, "tt0944947", 10),
+        (2, "tt1375666", 4),
+    ]
+
+    return [
+        ((today - timedelta(days=offset)).isoformat(), tconst, count)
+        for offset, tconst, count in templates
+    ]
+
+
+def build_user_daily_activity_seed():
+    """Build user-specific activity rows for personalized trending."""
+    today = date.today()
+
+    templates = [
+        # day offset, userId, tconst, activityCount
+        (0, 1, "tt0944947", 3),
+        (0, 1, "tt0903747", 2),
+        (0, 1, "tt3581920", 1),
+        (0, 2, "tt0944947", 4),
+        (0, 2, "tt4574334", 3),
+        (0, 2, "tt3581920", 2),
+        (0, 3, "tt0903747", 4),
+        (0, 3, "tt0773262", 2),
+        (0, 3, "tt3581920", 1),
+        (1, 1, "tt0944947", 2),
+        (1, 1, "tt0111161", 1),
+        (1, 2, "tt4574334", 2),
+        (1, 2, "tt3581920", 1),
+        (1, 3, "tt0903747", 3),
+        (1, 3, "tt0068646", 1),
+        (2, 1, "tt0903747", 2),
+        (2, 2, "tt0944947", 2),
+        (2, 3, "tt3581920", 2),
+    ]
+
+    return [
+        ((today - timedelta(days=offset)).isoformat(), user_id, tconst, count)
+        for offset, user_id, tconst, count in templates
+    ]
+
+
+def _upsert_daily_activity(cur, activity_date, tconst, increment_by):
+    if DB_TYPE == "mysql":
+        cur.execute(
+            """INSERT INTO DAILY_ACTIVITY(activityDate, tconst, activityCount)
+               VALUES(%s, %s, %s)
+               ON DUPLICATE KEY UPDATE activityCount = activityCount + VALUES(activityCount)""",
+            (activity_date, tconst, increment_by),
+        )
+        return
+
+    cur.execute(
+        """INSERT INTO DAILY_ACTIVITY(activityDate, tconst, activityCount)
+           VALUES(?,?,?)
+           ON CONFLICT(activityDate, tconst) DO UPDATE
+           SET activityCount = activityCount + excluded.activityCount""",
+        (activity_date, tconst, increment_by),
+    )
+
+
+def _upsert_user_daily_activity(cur, activity_date, user_id, tconst, increment_by):
+    if DB_TYPE == "mysql":
+        cur.execute(
+            """INSERT INTO USER_DAILY_ACTIVITY(activityDate, userId, tconst, activityCount)
+               VALUES(%s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE activityCount = activityCount + VALUES(activityCount)""",
+            (activity_date, user_id, tconst, increment_by),
+        )
+        return
+
+    cur.execute(
+        """INSERT INTO USER_DAILY_ACTIVITY(activityDate, userId, tconst, activityCount)
+           VALUES(?,?,?,?)
+           ON CONFLICT(activityDate, userId, tconst) DO UPDATE
+           SET activityCount = activityCount + excluded.activityCount""",
+        (activity_date, user_id, tconst, increment_by),
+    )
+
+
+def backfill_current_user_activity(cur):
+    """Add synthetic activity for current users so trending has realistic global counts."""
+    today = date.today().isoformat()
+
+    progress_rows = _select_all(cur, "SELECT userId, tconst, status FROM WATCH_PROGRESS")
+    review_rows = _select_all(cur, "SELECT userId, tconst FROM REVIEWS")
+    all_users = _select_all(cur, "SELECT userId FROM USERS ORDER BY userId")
+    fallback_titles = _select_all(
+        cur,
+        "SELECT tconst FROM TITLE_BASICS ORDER BY startYear DESC LIMIT 3",
+    )
+
+    users_with_today_activity = {
+        row["userId"]
+        for row in _select_all(
+            cur,
+            f"SELECT DISTINCT userId FROM USER_DAILY_ACTIVITY WHERE activityDate = {_ph()}",
+            (today,),
+        )
+    }
+
+    active_user_ids = set()
+
+    for row in progress_rows:
+        status = row["status"]
+        if status == "watching":
+            delta = 2
+        elif status == "finished":
+            delta = 1
+        else:
+            delta = 1
+
+        user_id = row["userId"]
+        tconst = row["tconst"]
+        if user_id in users_with_today_activity:
+            continue
+        active_user_ids.add(user_id)
+        _upsert_user_daily_activity(cur, today, user_id, tconst, delta)
+        _upsert_daily_activity(cur, today, tconst, delta)
+
+    for row in review_rows:
+        user_id = row["userId"]
+        tconst = row["tconst"]
+        if user_id in users_with_today_activity:
+            continue
+        active_user_ids.add(user_id)
+        _upsert_user_daily_activity(cur, today, user_id, tconst, 1)
+        _upsert_daily_activity(cur, today, tconst, 1)
+
+    # If a user has no progress/review yet, give a minimal bootstrap activity.
+    fallback_tconsts = [r["tconst"] for r in fallback_titles]
+    for user_row in all_users:
+        user_id = user_row["userId"]
+        if user_id in active_user_ids or user_id in users_with_today_activity:
+            continue
+        for tconst in fallback_tconsts[:2]:
+            _upsert_user_daily_activity(cur, today, user_id, tconst, 1)
+            _upsert_daily_activity(cur, today, tconst, 1)
 
 
 def seed():
@@ -218,63 +370,72 @@ def seed():
     conn = get_db()
     cur = conn.cursor()
 
-    # Skip seeding if data already exists
+    # Skip core dataset seeding if title data already exists
     result = cur.execute("SELECT COUNT(*) FROM TITLE_BASICS")
     row = cur.fetchone()
     existing = list(row.values())[0]
-    if existing > 0:
-        conn.close()
-        return
+    insert_ignore = _insert_ignore()
+    ph = _ph()
 
+    if existing == 0:
+        cur.executemany(
+            f"{insert_ignore} INTO TITLE_BASICS(tconst,titleType,primaryTitle,startYear,genres) VALUES({ph},{ph},{ph},{ph},{ph})",
+            TITLE_BASICS,
+        )
+        cur.executemany(
+            f"{insert_ignore} INTO TITLE_RATINGS(tconst,averageRating,numVotes) VALUES({ph},{ph},{ph})",
+            TITLE_RATINGS,
+        )
+        cur.executemany(
+            f"{insert_ignore} INTO TITLE_EPISODE(tconst,parentTconst,seasonNumber,episodeNumber) VALUES({ph},{ph},{ph},{ph})",
+            EPISODES,
+        )
+        # NAME_BASICS may have duplicates in seed list – use INSERT OR IGNORE
+        seen_nconst = set()
+        for row in NAME_BASICS:
+            if row[0] not in seen_nconst:
+                seen_nconst.add(row[0])
+                cur.execute(
+                    f"{insert_ignore} INTO NAME_BASICS(nconst,primaryName,birthYear,primaryProfession) VALUES({ph},{ph},{ph},{ph})",
+                    row,
+                )
+        cur.executemany(
+            f"{insert_ignore} INTO TITLE_PRINCIPALS(tconst,nconst,category,characters) VALUES({ph},{ph},{ph},{ph})",
+            TITLE_PRINCIPALS,
+        )
+        cur.executemany(
+            f"{insert_ignore} INTO TITLE_CREW(tconst,directors,writers) VALUES({ph},{ph},{ph})",
+            TITLE_CREW,
+        )
+        cur.executemany(
+            f"{insert_ignore} INTO USERS(username,email,password) VALUES({ph},{ph},{ph})",
+            USERS,
+        )
+        cur.executemany(
+            f"{insert_ignore} INTO WATCH_PROGRESS(userId,tconst,status,currentSeason,currentEpisode,episodesPerDay,lastWatchedDate) VALUES({ph},{ph},{ph},{ph},{ph},{ph},{ph})",
+            WATCH_PROGRESS,
+        )
+        cur.executemany(
+            f"{insert_ignore} INTO REVIEWS(userId,tconst,episodeTconst,rating,reviewText) VALUES({ph},{ph},{ph},{ph},{ph})",
+            REVIEWS,
+        )
+        cur.executemany(
+            f"{insert_ignore} INTO WATCH_BUDDIES(userId1,userId2) VALUES({ph},{ph})",
+            WATCH_BUDDIES,
+        )
+
+    # Always ensure recent fake trending data exists for the UI demo.
     cur.executemany(
-        "INSERT OR IGNORE INTO TITLE_BASICS(tconst,titleType,primaryTitle,startYear,genres) VALUES(?,?,?,?,?)",
-        TITLE_BASICS,
+        f"{insert_ignore} INTO DAILY_ACTIVITY(activityDate,tconst,activityCount) VALUES({ph},{ph},{ph})",
+        build_daily_activity_seed(),
     )
     cur.executemany(
-        "INSERT OR IGNORE INTO TITLE_RATINGS(tconst,averageRating,numVotes) VALUES(?,?,?)",
-        TITLE_RATINGS,
+        f"{insert_ignore} INTO USER_DAILY_ACTIVITY(activityDate,userId,tconst,activityCount) VALUES({ph},{ph},{ph},{ph})",
+        build_user_daily_activity_seed(),
     )
-    cur.executemany(
-        "INSERT OR IGNORE INTO TITLE_EPISODE(tconst,parentTconst,seasonNumber,episodeNumber) VALUES(?,?,?,?)",
-        EPISODES,
-    )
-    # NAME_BASICS may have duplicates in seed list – use INSERT OR IGNORE
-    seen_nconst = set()
-    for row in NAME_BASICS:
-        if row[0] not in seen_nconst:
-            seen_nconst.add(row[0])
-            cur.execute(
-                "INSERT OR IGNORE INTO NAME_BASICS(nconst,primaryName,birthYear,primaryProfession) VALUES(?,?,?,?)",
-                row,
-            )
-    cur.executemany(
-        "INSERT OR IGNORE INTO TITLE_PRINCIPALS(tconst,nconst,category,characters) VALUES(?,?,?,?)",
-        TITLE_PRINCIPALS,
-    )
-    cur.executemany(
-        "INSERT OR IGNORE INTO TITLE_CREW(tconst,directors,writers) VALUES(?,?,?)",
-        TITLE_CREW,
-    )
-    cur.executemany(
-        "INSERT OR IGNORE INTO USERS(username,email,password) VALUES(?,?,?)",
-        USERS,
-    )
-    cur.executemany(
-        "INSERT OR IGNORE INTO WATCH_PROGRESS(userId,tconst,status,currentSeason,currentEpisode,episodesPerDay,lastWatchedDate) VALUES(?,?,?,?,?,?,?)",
-        WATCH_PROGRESS,
-    )
-    cur.executemany(
-        "INSERT OR IGNORE INTO REVIEWS(userId,tconst,episodeTconst,rating,reviewText) VALUES(?,?,?,?,?)",
-        REVIEWS,
-    )
-    cur.executemany(
-        "INSERT OR IGNORE INTO WATCH_BUDDIES(userId1,userId2) VALUES(?,?)",
-        WATCH_BUDDIES,
-    )
-    cur.executemany(
-        "INSERT OR IGNORE INTO DAILY_ACTIVITY(activityDate,tconst,activityCount) VALUES(?,?,?)",
-        DAILY_ACTIVITY,
-    )
+
+    # Ensure global trending reflects activity from current users in this database.
+    backfill_current_user_activity(cur)
 
     conn.commit()
     conn.close()

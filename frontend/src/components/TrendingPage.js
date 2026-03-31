@@ -1,15 +1,21 @@
 import React, { useEffect, useState } from 'react';
+import { useUser } from '../UserContext';
 
 const API = '/api';
 
 export default function TrendingPage({ onSelectTitle }) {
+  const user = useUser();
   const [trending, setTrending] = useState([]);
   const [loading,  setLoading]  = useState(true);
-  const [dateStr,  setDateStr]  = useState('2026-03-02');
+  const [dateStr,  setDateStr]  = useState(() => new Date().toISOString().slice(0, 10));
 
   const load = async () => {
     setLoading(true);
-    const r = await fetch(`${API}/trending?date=${dateStr}`).then(res => res.json());
+    const query = new URLSearchParams({ date: dateStr });
+    if (user?.userId) {
+      query.set('userId', String(user.userId));
+    }
+    const r = await fetch(`${API}/trending?${query.toString()}`).then(res => res.json());
     setTrending(r);
     setLoading(false);
   };
