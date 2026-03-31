@@ -52,6 +52,7 @@ WATCH_PROGRESS    – per-user tracking record (status, current S/E, pace)
 REVIEWS           – user reviews with optional episode context
 WATCH_BUDDIES     – friend/buddy relationships
 DAILY_ACTIVITY    – daily interaction counts per title (powers trending)
+USER_DAILY_ACTIVITY – per-user daily interaction counts per title
 ```
 
 ---
@@ -104,7 +105,7 @@ CREATE DATABASE IF NOT EXISTS silvertrack
   COLLATE utf8mb4_unicode_ci;
 ```
 
-The Flask app will create all 11 tables automatically on first start.
+The Flask app will create all 12 tables automatically on first start.
 
 ### 3. Install Python dependencies
 
@@ -118,7 +119,7 @@ This installs `pymysql` and `python-dotenv` (already listed in `requirements.txt
 
 ```bash
 cd backend
-python app.py          # runs on port 5000; reads .env automatically
+PORT=5001 python app.py          # default is 5001; reads .env automatically
 ```
 
 ### 5. Load real IMDB data into Azure (optional)
@@ -203,15 +204,17 @@ MYSQL_DATABASE=silvertrack
 bash start.sh
 ```
 This installs dependencies, seeds the database, and starts both servers:
-- **Backend** → http://localhost:5000
-- **Frontend** → http://localhost:3000
+- **Backend** → defaults to http://localhost:5001 (auto-falls back to 5002-5010 if busy)
+- **Frontend** → defaults to http://localhost:3000 (auto-falls back to 3001-3010 if busy)
 
 ### Manual start (development)
 ```bash
 # Backend
 cd backend
-pip install -r requirements.txt
-python app.py          # runs on port 5000
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r requirements.txt
+PORT=5001 python app.py
 
 # Frontend (separate terminal)
 cd frontend
@@ -219,7 +222,8 @@ npm install
 npm start              # runs on port 3000 with hot reload
 ```
 
-The frontend dev server proxies all `/api/*` calls to the Flask backend at `localhost:5000` (configured by `"proxy"` in `frontend/package.json`).
+The frontend dev server proxies all `/api/*` calls to the Flask backend using `frontend/src/setupProxy.js`.
+The proxy target comes from `REACT_APP_API_PROXY_TARGET` and defaults to `http://localhost:5001`.
 
 ### Production build
 
@@ -234,7 +238,7 @@ npm run build          # outputs to frontend/build/
 # 2. Start Flask (it serves frontend/build/ for all non-API routes)
 cd ../backend
 pip install -r requirements.txt
-python app.py          # http://localhost:5000 serves both API and UI
+PORT=5001 python app.py          # http://localhost:5001 serves both API and UI
 ```
 
 ---
@@ -257,6 +261,7 @@ python app.py          # http://localhost:5000 serves both API and UI
 | GET | `/api/recommendations/<userId>` | Personalized picks |
 | GET | `/api/users` | List users |
 | POST | `/api/users` | Register user |
+| POST | `/api/auth/login` | Login |
 
 ---
 
@@ -272,6 +277,7 @@ USERS        ─── WATCH_PROGRESS ───── TITLE_BASICS
 USERS        ─── REVIEWS       ───── TITLE_BASICS
 USERS        ─── WATCH_BUDDIES ───── USERS
 TITLE_BASICS ─── DAILY_ACTIVITY
+USERS        ─── USER_DAILY_ACTIVITY ───── TITLE_BASICS
 ```
 
 ---
