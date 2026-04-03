@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import './App.css';
+import { UserContext } from './UserContext';
+import LoginPage from './components/LoginPage';
 import SearchPage from './components/SearchPage';
 import TitleDetail from './components/TitleDetail';
 import TrackPage from './components/TrackPage';
@@ -17,17 +19,25 @@ const NAV_ITEMS = [
   { key: 'buddy',     label: '👥 Watch Buddy'  },
 ];
 
-// Global "current user" for demo purposes (user 1 = alice)
-export const CURRENT_USER = { userId: 1, username: 'alice' };
-
 function App() {
-  const [page, setPage]           = useState('search');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [page, setPage]               = useState('search');
   const [selectedTitle, setSelectedTitle] = useState(null);
 
   const goToDetail = (tconst) => {
     setSelectedTitle(tconst);
     setPage('detail');
   };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setPage('search');
+    setSelectedTitle(null);
+  };
+
+  if (!currentUser) {
+    return <LoginPage onLogin={setCurrentUser} />;
+  }
 
   const renderPage = () => {
     switch (page) {
@@ -43,24 +53,31 @@ function App() {
   };
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <div className="brand" onClick={() => setPage('search')}>🎬 SilverTrack</div>
-        <nav className="app-nav">
-          {NAV_ITEMS.map(item => (
-            <button
-              key={item.key}
-              className={`nav-btn${page === item.key ? ' active' : ''}`}
-              onClick={() => setPage(item.key)}
-            >
-              {item.label}
+    <UserContext.Provider value={currentUser}>
+      <div className="app">
+        <header className="app-header">
+          <div className="brand" onClick={() => setPage('search')}>🎬 SilverTrack</div>
+          <nav className="app-nav">
+            {NAV_ITEMS.map(item => (
+              <button
+                key={item.key}
+                className={`nav-btn${page === item.key ? ' active' : ''}`}
+                onClick={() => setPage(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div className="user-badge">👤 {currentUser.username}</div>
+            <button className="nav-btn" onClick={handleLogout} title="Sign out">
+              ↩ Logout
             </button>
-          ))}
-        </nav>
-        <div className="user-badge">👤 {CURRENT_USER.username}</div>
-      </header>
-      <main className="app-main">{renderPage()}</main>
-    </div>
+          </div>
+        </header>
+        <main className="app-main">{renderPage()}</main>
+      </div>
+    </UserContext.Provider>
   );
 }
 

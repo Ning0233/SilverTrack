@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
+import { useUser } from '../UserContext';
 
 const API = '/api';
 
 export default function RecommendPage({ onSelectTitle }) {
+  const currentUser = useUser();
   const [recs,    setRecs]    = useState([]);
   const [loading, setLoading] = useState(true);
-  const [userId,  setUserId]  = useState(1);
+  const [userId,  setUserId]  = useState(currentUser?.userId ?? 1);
   const [users,   setUsers]   = useState([]);
 
   useEffect(() => {

@@ -1,22 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { CURRENT_USER } from '../App';
+import { useUser } from '../UserContext';
 
 const API = '/api';
 
 export default function TrackPage({ onSelectTitle }) {
+  const currentUser = useUser();
   const [progress, setProgress] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [predict,  setPredict]  = useState({});
 
   useEffect(() => {
-    fetch(`${API}/progress/${CURRENT_USER.userId}`)
+    fetch(`${API}/progress/${currentUser.userId}`)
       .then(r => r.json())
       .then(data => { setProgress(data); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [currentUser.userId]);
 
   const fetchPrediction = async (tconst) => {
-    const res = await fetch(`${API}/progress/${CURRENT_USER.userId}/${tconst}/predict`);
+    const res = await fetch(`${API}/progress/${currentUser.userId}/${tconst}/predict`);
     const data = await res.json();
     setPredict(prev => ({ ...prev, [tconst]: data }));
   };

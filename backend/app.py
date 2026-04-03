@@ -1,10 +1,13 @@
 """SilverTrack – Flask REST API backend."""
+from dotenv import load_dotenv
+load_dotenv()
 import os
 from datetime import date, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
 
-from database import get_db, init_db
+from database import get_db, init_db, DB_TYPE
 from seed_data import seed as seed_db
 
 FRONTEND_BUILD = os.path.join(os.path.dirname(__file__), "..", "frontend", "build")
@@ -23,6 +26,37 @@ def row_to_dict(row):
 
 def rows_to_list(rows):
     return [dict(r) for r in rows]
+
+
+def increment_daily_activity(conn, user_id, tconst):
+    """Increment global and per-user activity counters for a title."""
+    today = date.today().isoformat()
+
+    if DB_TYPE == "mysql":
+        conn.execute(
+            """INSERT INTO DAILY_ACTIVITY(activityDate, tconst, activityCount)
+               VALUES(?, ?, 1)
+               ON DUPLICATE KEY UPDATE activityCount = activityCount + 1""",
+            (today, tconst),
+        )
+        conn.execute(
+            """INSERT INTO USER_DAILY_ACTIVITY(activityDate, userId, tconst, activityCount)
+               VALUES(?, ?, ?, 1)
+               ON DUPLICATE KEY UPDATE activityCount = activityCount + 1""",
+            (today, user_id, tconst),
+        )
+        return
+
+    conn.execute(
+        """INSERT INTO DAILY_ACTIVITY(activityDate, tconst, activityCount) VALUES(?,?,1)
+           ON CONFLICT(activityDate, tconst) DO UPDATE SET activityCount = activityCount + 1""",
+        (today, tconst),
+    )
+    conn.execute(
+        """INSERT INTO USER_DAILY_ACTIVITY(activityDate, userId, tconst, activityCount) VALUES(?,?,?,1)
+           ON CONFLICT(activityDate, userId, tconst) DO UPDATE SET activityCount = activityCount + 1""",
+        (today, user_id, tconst),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -162,13 +196,7 @@ def upsert_progress():
         ),
     )
 
-    # Log daily activity
-    today = date.today().isoformat()
-    conn.execute(
-        """INSERT INTO DAILY_ACTIVITY(activityDate, tconst, activityCount) VALUES(?,?,1)
-           ON CONFLICT(activityDate, tconst) DO UPDATE SET activityCount = activityCount + 1""",
-        (today, tconst),
-    )
+    increment_daily_activity(conn, userId, tconst)
 
     conn.commit()
     conn.close()
@@ -257,13 +285,7 @@ def add_review():
         (userId, tconst, data.get("episodeTconst"), data.get("rating"), data.get("reviewText")),
     )
 
-    # Log daily activity
-    today = date.today().isoformat()
-    conn.execute(
-        """INSERT INTO DAILY_ACTIVITY(activityDate, tconst, activityCount) VALUES(?,?,1)
-           ON CONFLICT(activityDate, tconst) DO UPDATE SET activityCount = activityCount + 1""",
-        (today, tconst),
-    )
+    increment_daily_activity(conn, userId, tconst)
 
     conn.commit()
     conn.close()
@@ -321,9 +343,9 @@ def add_buddy():
     try:
         conn.execute("INSERT INTO WATCH_BUDDIES(userId1, userId2) VALUES(?,?)", (u1, u2))
         conn.commit()
-    except Exception:
+    except Exception as e:
         conn.close()
-        return jsonify({"error": "Buddy relationship already exists"}), 409
+        return jsonify({"error": str(e)}), 409
     conn.close()
     return jsonify({"message": "Buddy added"}), 201
 
@@ -366,20 +388,36 @@ def compare_buddies():
 
 @app.route("/api/trending", methods=["GET"])
 def trending():
-    """Return today's top-trending titles by activity count."""
+    """Return top trending titles ranked by global daily activity."""
     trend_date = request.args.get("date", date.today().isoformat())
     conn = get_db()
-    rows = conn.execute(
-        """SELECT da.tconst, tb.primaryTitle, tb.titleType, tb.genres,
-                  tr.averageRating, da.activityCount
-           FROM DAILY_ACTIVITY da
-           JOIN TITLE_BASICS tb ON da.tconst = tb.tconst
-           LEFT JOIN TITLE_RATINGS tr ON da.tconst = tr.tconst
-           WHERE da.activityDate = ?
-           ORDER BY da.activityCount DESC
-           LIMIT 10""",
-        (trend_date,),
-    ).fetchall()
+
+    def fetch_trending_rows(activity_date):
+        return conn.execute(
+            """SELECT da.tconst,
+                      tb.primaryTitle,
+                      tb.titleType,
+                      tb.genres,
+                      tr.averageRating,
+                      da.activityCount,
+                      da.activityCount AS score
+               FROM DAILY_ACTIVITY da
+               JOIN TITLE_BASICS tb ON da.tconst = tb.tconst
+               LEFT JOIN TITLE_RATINGS tr ON da.tconst = tr.tconst
+               WHERE da.activityDate = ?
+               ORDER BY da.activityCount DESC
+               LIMIT 10""",
+            (activity_date,),
+        ).fetchall()
+
+    rows = fetch_trending_rows(trend_date)
+
+    if not rows:
+        latest = conn.execute("SELECT MAX(activityDate) AS latestDate FROM DAILY_ACTIVITY").fetchone()
+        latest_date = latest["latestDate"] if latest else None
+        if latest_date:
+            rows = fetch_trending_rows(latest_date)
+
     conn.close()
     return jsonify(rows_to_list(rows))
 
@@ -462,14 +500,50 @@ def register_user():
     try:
         conn.execute(
             "INSERT INTO USERS(username, email, password) VALUES(?,?,?)",
-            (username, email, password),
+            (username, email, generate_password_hash(password, method="pbkdf2:sha256")),
         )
         conn.commit()
-    except Exception:
+    except Exception as e:
         conn.close()
-        return jsonify({"error": "Username or email already exists"}), 409
+        return jsonify({"error": str(e)}), 409
     conn.close()
     return jsonify({"message": "User registered"}), 201
+
+
+# ===========================================================================
+# 9. AUTH – Login
+# ===========================================================================
+
+@app.route("/api/auth/login", methods=["POST"])
+@app.route("/auth/login", methods=["POST"])
+def login():
+    """Authenticate a user by username and password."""
+    data     = request.get_json(force=True)
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+
+    if not username or not password:
+        return jsonify({"error": "username and password are required"}), 400
+
+    conn = get_db()
+    user = conn.execute(
+        "SELECT userId, username, email, password FROM USERS WHERE username = ?",
+        (username,),
+    ).fetchone()
+    conn.close()
+
+    if not user:
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    stored = dict(user)["password"]
+    if not check_password_hash(stored, password):
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    return jsonify({
+        "userId":   dict(user)["userId"],
+        "username": dict(user)["username"],
+        "email":    dict(user)["email"],
+    })
 
 
 # Serve React frontend for any non-API route
@@ -483,4 +557,5 @@ def serve_frontend(path):
 
 if __name__ == "__main__":
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
-    app.run(debug=debug, port=5000)
+    port = int(os.environ.get("PORT", "5001"))
+    app.run(debug=debug, port=port)

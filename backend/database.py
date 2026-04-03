@@ -1,5 +1,7 @@
 import os
 import sqlite3
+from dotenv import load_dotenv
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Database configuration
@@ -76,6 +78,9 @@ class _MySQLConnectionWrapper:
         # Translate SQLite positional placeholders (`?`) to MySQL-style (`%s`).
         sql_mysql = sql.replace("?", "%s")
         self._cursor.execute(sql_mysql, params)
+        return self._cursor
+
+    def cursor(self):
         return self._cursor
 
     def commit(self):
@@ -201,6 +206,16 @@ _SQLITE_DDL = """
         PRIMARY KEY (activityDate, tconst),
         FOREIGN KEY (tconst) REFERENCES TITLE_BASICS(tconst)
     );
+
+    CREATE TABLE IF NOT EXISTS USER_DAILY_ACTIVITY (
+        activityDate    TEXT NOT NULL,
+        userId          INTEGER NOT NULL,
+        tconst          TEXT NOT NULL,
+        activityCount   INTEGER DEFAULT 0,
+        PRIMARY KEY (activityDate, userId, tconst),
+        FOREIGN KEY (userId) REFERENCES USERS(userId),
+        FOREIGN KEY (tconst) REFERENCES TITLE_BASICS(tconst)
+    );
 """
 
 # MySQL DDL – identical structure; MySQL-compatible syntax
@@ -317,6 +332,16 @@ _MYSQL_DDL = """
         tconst       VARCHAR(20) NOT NULL,
         activityCount INT        DEFAULT 0,
         PRIMARY KEY (activityDate, tconst),
+        FOREIGN KEY (tconst) REFERENCES TITLE_BASICS(tconst)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    CREATE TABLE IF NOT EXISTS USER_DAILY_ACTIVITY (
+        activityDate  DATE        NOT NULL,
+        userId        INT         NOT NULL,
+        tconst        VARCHAR(20) NOT NULL,
+        activityCount INT         DEFAULT 0,
+        PRIMARY KEY (activityDate, userId, tconst),
+        FOREIGN KEY (userId) REFERENCES USERS(userId),
         FOREIGN KEY (tconst) REFERENCES TITLE_BASICS(tconst)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 """
