@@ -176,25 +176,37 @@ def upsert_progress():
         conn.close()
         return jsonify({"error": "Title not found"}), 404
 
-    conn.execute(
-        """INSERT INTO WATCH_PROGRESS
-               (userId, tconst, status, currentSeason, currentEpisode, episodesPerDay, lastWatchedDate)
-           VALUES (?, ?, ?, ?, ?, ?, date('now'))
-           ON CONFLICT(userId, tconst) DO UPDATE SET
-               status         = excluded.status,
-               currentSeason  = excluded.currentSeason,
-               currentEpisode = excluded.currentEpisode,
-               episodesPerDay = excluded.episodesPerDay,
-               lastWatchedDate = date('now')""",
-        (
-            userId,
-            tconst,
-            data.get("status", "watching"),
-            data.get("currentSeason", 1),
-            data.get("currentEpisode", 1),
-            data.get("episodesPerDay", 0),
-        ),
-    )
+    status = data.get("status", "watching")
+    season = data.get("currentSeason", 1)
+    episode = data.get("currentEpisode", 1)
+    ep_per_day = data.get("episodesPerDay", 0)
+
+    if DB_TYPE == "mysql":
+        conn.execute(
+            """INSERT INTO WATCH_PROGRESS
+                   (userId, tconst, status, currentSeason, currentEpisode, episodesPerDay, lastWatchedDate)
+               VALUES (?, ?, ?, ?, ?, ?, CURDATE())
+               ON DUPLICATE KEY UPDATE
+                   status = VALUES(status),
+                   currentSeason = VALUES(currentSeason),
+                   currentEpisode = VALUES(currentEpisode),
+                   episodesPerDay = VALUES(episodesPerDay),
+                   lastWatchedDate = CURDATE()""",
+            (userId, tconst, status, season, episode, ep_per_day),
+        )
+    else:
+        conn.execute(
+            """INSERT INTO WATCH_PROGRESS
+                   (userId, tconst, status, currentSeason, currentEpisode, episodesPerDay, lastWatchedDate)
+               VALUES (?, ?, ?, ?, ?, ?, date('now'))
+               ON CONFLICT(userId, tconst) DO UPDATE SET
+                   status         = excluded.status,
+                   currentSeason  = excluded.currentSeason,
+                   currentEpisode = excluded.currentEpisode,
+                   episodesPerDay = excluded.episodesPerDay,
+                   lastWatchedDate = date('now')""",
+            (userId, tconst, status, season, episode, ep_per_day),
+        )
 
     increment_daily_activity(conn, userId, tconst)
 

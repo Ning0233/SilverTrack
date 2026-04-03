@@ -37,23 +37,36 @@ export default function TitleDetail({ tconst, onBack }) {
   }, [tconst]);
 
   const saveProgress = async () => {
-    await fetch(`${API}/progress`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: currentUser.userId,
-        tconst,
-        status: trackStatus,
-        currentSeason:  parseInt(trackSeason),
-        currentEpisode: parseInt(trackEpisode),
-        episodesPerDay: parseFloat(epPerDay),
-      }),
-    });
-    setTrackMsg('Progress saved! ✓');
-    // fetch prediction for TV series
-    if (detail?.title?.titleType === 'tvSeries') {
-      const p = await fetch(`${API}/progress/${currentUser.userId}/${tconst}/predict`).then(r => r.json());
-      setPredict(p);
+    try {
+      const res = await fetch(`${API}/progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.userId,
+          tconst,
+          status: trackStatus,
+          currentSeason:  parseInt(trackSeason, 10),
+          currentEpisode: parseInt(trackEpisode, 10),
+          episodesPerDay: parseFloat(epPerDay),
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setTrackMsg(data.error || 'Failed to save progress.');
+        return;
+      }
+
+      setTrackMsg('Progress saved! ✓');
+
+      // fetch prediction for TV series
+      if (detail?.title?.titleType === 'tvSeries') {
+        const pRes = await fetch(`${API}/progress/${currentUser.userId}/${tconst}/predict`);
+        const p = await pRes.json();
+        setPredict(p);
+      }
+    } catch {
+      setTrackMsg('Network error while saving progress.');
     }
   };
 
